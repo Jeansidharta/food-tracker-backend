@@ -1,2 +1,2 @@
 watch:
-	cargo watch -x run
+	DATABASE_URL=sqlite:./db_dev PORT=8000 cargo watch -w src -x run

@@ -1,6 +1,6 @@
 CREATE TABLE Meal (
 	id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-	creation_date INTEGER NOT NULL DEFAULT (unixepoch()),
+	creation_date INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
 	eat_date INTEGER,
 	duration INTEGER,
 	description TEXT,
@@ -10,7 +10,7 @@ CREATE TABLE Meal (
 ) STRICT;
 
 CREATE TABLE MealDish(
-	creation_date INTEGER NOT NULL DEFAULT (unixepoch()),
+	creation_date INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
 	dish_id INTEGER REFERENCES Dish(id),
 	meal_id INTEGER REFERENCES Meal(id),
 	weight INT NOT NULL,
@@ -19,13 +19,13 @@ CREATE TABLE MealDish(
 
 CREATE TABLE Dish(
 	id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-	creation_date INTEGER NOT NULL DEFAULT (unixepoch()),
+	creation_date INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
 	prep_date INTEGER,
 	name TEXT
 ) STRICT;
 
 CREATE TABLE DishIngredient (
-	creation_date INTEGER NOT NULL DEFAULT (unixepoch()),
+	creation_date INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
 	dish_id INTEGER REFERENCES Dish(id),
 	ingredient_id INTEGER REFERENCES Ingredient(id),
 	weight INT NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE DishIngredient (
 
 CREATE TABLE Ingredient(
 	id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-	creation_date INTEGER NOT NULL DEFAULT (unixepoch()),
+	creation_date INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
 	name TEXT NOT NULL
 ) STRICT;
 

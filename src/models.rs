@@ -1,110 +1,80 @@
-#![allow(non_snake_case)]
-use diesel::prelude::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Queryable, Selectable, PartialEq, PartialOrd, Serialize, JsonSchema)]
-#[diesel(table_name = crate::schema::Ingredient)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[derive(Serialize, PartialEq, PartialOrd, JsonSchema)]
 pub struct Ingredient {
-    pub id: i32,
-    pub creation_date: i32,
+    pub id: i64,
+    pub creation_date: i64,
     pub name: String,
 }
 
-#[derive(PartialEq, PartialOrd, Insertable, Serialize, Deserialize, JsonSchema)]
-#[diesel(table_name = crate::schema::Ingredient)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[derive(PartialEq, PartialOrd, Deserialize, JsonSchema)]
 pub struct NewIngredient {
     pub name: String,
 }
 
-#[derive(Queryable, Selectable, Insertable, Serialize, JsonSchema)]
-#[diesel(table_name = crate::schema::Dish)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[derive(Serialize, JsonSchema)]
 pub struct Dish {
-    pub id: i32,
-    pub creation_date: i32,
-    pub prep_date: Option<i32>,
+    pub id: i64,
+    pub creation_date: i64,
+    pub prep_date: Option<i64>,
     pub name: Option<String>,
 }
 
-#[derive(Queryable, Selectable, Insertable, Serialize, Associations, JsonSchema)]
-#[diesel(belongs_to(Dish))]
-#[diesel(belongs_to(Ingredient))]
-#[diesel(table_name = crate::schema::DishIngredient)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
-#[diesel(primary_key(dish_id, ingredient_id))]
+#[derive(sqlx::FromRow, Serialize, JsonSchema)]
 pub struct DishIngredient {
-    pub creation_date: i32,
-    pub dish_id: i32,
-    pub ingredient_id: i32,
-    pub weight: i32,
+    pub creation_date: i64,
+    pub dish_id: i64,
+    pub ingredient_id: i64,
+    pub weight: i64,
 }
 
-#[derive(Queryable, Selectable, Insertable, Serialize, JsonSchema)]
-#[diesel(table_name = crate::schema::Dish)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[derive(JsonSchema)]
 pub struct NewDish {
     pub name: Option<String>,
-    pub prep_date: Option<i32>,
+    pub prep_date: Option<i64>,
 }
 
-#[derive(Queryable, Selectable, Insertable, Serialize, JsonSchema)]
-#[diesel(belongs_to(Dish))]
-#[diesel(belongs_to(Ingredient))]
-#[diesel(table_name = crate::schema::DishIngredient)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
-#[diesel(primary_key(dish_id, ingredient_id))]
+#[derive(JsonSchema)]
 pub struct NewDishIngredient {
-    pub dish_id: i32,
-    pub ingredient_id: i32,
-    pub weight: i32,
+    pub dish_id: i64,
+    pub ingredient_id: i64,
+    pub weight: i64,
 }
 
-#[derive(Queryable, Selectable, Insertable, Serialize, Default, JsonSchema)]
-#[diesel(table_name = crate::schema::Meal)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[derive(Serialize, Default, JsonSchema)]
 pub struct Meal {
-    pub id: i32,
-    pub creation_date: i32,
-    pub eat_date: Option<i32>,
-    pub duration: Option<i32>,
+    pub id: i64,
+    pub creation_date: i64,
+    pub eat_date: Option<i64>,
+    pub duration: Option<i64>,
     pub description: Option<String>,
-    pub hunger_level: Option<i32>,
-    pub desire_to_eat: Option<i32>,
-    pub fullness_afterwards: Option<i32>,
+    pub hunger_level: Option<i64>,
+    pub desire_to_eat: Option<i64>,
+    pub fullness_afterwards: Option<i64>,
 }
 
-#[derive(Queryable, Selectable, Serialize, Default, JsonSchema)]
-#[diesel(table_name = crate::schema::MealDish)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
-#[diesel(primary_key(meal_id, dish_id))]
+#[derive(Serialize, sqlx::FromRow, Default, JsonSchema)]
 pub struct MealDish {
-    pub creation_date: i32,
-    pub dish_id: i32,
-    pub meal_id: i32,
-    pub weight: i32,
+    pub creation_date: i64,
+    pub dish_id: i64,
+    pub meal_id: i64,
+    pub weight: i64,
 }
 
-#[derive(Queryable, Selectable, Insertable, Serialize, Deserialize, Default, JsonSchema)]
-#[diesel(table_name = crate::schema::Meal)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[derive(Deserialize, Default, JsonSchema)]
 pub struct NewMeal {
-    pub eat_date: Option<i32>,
-    pub duration: Option<i32>,
+    pub eat_date: Option<i64>,
+    pub duration: Option<i64>,
     pub description: Option<String>,
-    pub hunger_level: Option<i32>,
-    pub desire_to_eat: Option<i32>,
-    pub fullness_afterwards: Option<i32>,
+    pub hunger_level: Option<i64>,
+    pub desire_to_eat: Option<i64>,
+    pub fullness_afterwards: Option<i64>,
 }
 
-#[derive(Queryable, Selectable, Insertable, Serialize, Default, JsonSchema)]
-#[diesel(table_name = crate::schema::MealDish)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
-#[diesel(primary_key(meal_id, dish_id))]
+#[derive(Default, JsonSchema)]
 pub struct NewMealDish {
-    pub dish_id: i32,
-    pub meal_id: i32,
-    pub weight: i32,
+    pub dish_id: i64,
+    pub meal_id: i64,
+    pub weight: i64,
 }

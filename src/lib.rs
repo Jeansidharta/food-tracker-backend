@@ -5,16 +5,27 @@ mod dish;
 mod ingredient;
 mod meal;
 mod models;
-mod schema;
 mod server;
 
+use schemars::JsonSchema;
+use serde::Deserialize;
 pub use server::server;
+mod state;
 
-pub fn establish_connection() -> diesel::SqliteConnection {
-    use diesel::prelude::*;
-    use std::env;
+pub fn get_missing_items(
+    list: Vec<i64>,
+    required_items: impl IntoIterator<Item = i64>,
+) -> Vec<i64> {
+    let mut unknown_ingredients = vec![];
+    required_items.into_iter().for_each(|item| {
+        if !list.contains(&item) {
+            unknown_ingredients.push(item)
+        }
+    });
+    unknown_ingredients
+}
 
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    diesel::SqliteConnection::establish(&database_url)
-        .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
+#[derive(JsonSchema, Deserialize)]
+pub struct PathId {
+    pub id: i64,
 }
