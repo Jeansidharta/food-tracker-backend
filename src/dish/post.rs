@@ -22,6 +22,7 @@ pub struct PostDish {
     name: String,
     prep_date: Option<i64>,
     dish_ingredients: Option<Vec<PostDishIngredient>>,
+    total_weight: Option<i64>,
 }
 
 #[derive(Error, Debug)]
@@ -32,6 +33,7 @@ enum PostDishError {
 pub async fn post_dish(
     State(AppState { connection }): State<AppState>,
     Json(PostDish {
+        total_weight,
         name,
         prep_date,
         dish_ingredients,
@@ -68,11 +70,18 @@ pub async fn post_dish(
 
     let transaction = connection.begin().await?;
 
+    let total_weight = total_weight.unwrap_or(0);
+
     let new_dish = sqlx::query_as!(
         Dish,
-        "INSERT INTO Dish (name, prep_date) VALUES (?, ?) RETURNING id, creation_date, prep_date, name, total_weight;",
+        "INSERT INTO Dish
+            (name, prep_date, total_weight)
+        VALUES
+            (?, ?, ?)
+        RETURNING id, creation_date, prep_date, name, total_weight;",
         name,
         prep_date,
+        total_weight
     )
     .fetch_one(&connection)
     .await?;

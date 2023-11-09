@@ -4,21 +4,12 @@ use axum::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sqlx::QueryBuilder;
 use thiserror::Error;
 
 use crate::{
-    get_missing_items,
-    models::{Dish, DishIngredient},
     server::{ServerResponse, ServerResponseResult},
     state::AppState,
 };
-
-#[derive(Deserialize, JsonSchema, Debug)]
-struct PostDishIngredient {
-    weight: i64,
-    ingredient_id: i64,
-}
 
 #[derive(Deserialize, JsonSchema, Debug)]
 pub struct PostTotalWeight {
