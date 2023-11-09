@@ -70,7 +70,7 @@ pub async fn post_dish(
 
     let new_dish = sqlx::query_as!(
         Dish,
-        "INSERT INTO Dish (name, prep_date) VALUES (?, ?) RETURNING *;",
+        "INSERT INTO Dish (name, prep_date) VALUES (?, ?) RETURNING id, creation_date, prep_date, name, total_weight;",
         name,
         prep_date,
     )

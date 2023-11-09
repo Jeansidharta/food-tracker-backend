@@ -42,7 +42,7 @@ pub async fn get_dish(
         Dish,
         r#"
         SELECT 
-            id, creation_date, name, prep_date
+            id, creation_date, name, prep_date, total_weight
         FROM Dish
         WHERE Dish.id = ?"#,
         id

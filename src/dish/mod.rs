@@ -9,6 +9,7 @@ mod delete;
 mod delete_warning;
 mod get;
 mod ingredient;
+mod weight;
 mod list;
 mod post;
 
@@ -20,6 +21,7 @@ pub fn route(state: AppState) -> ApiRouter {
             "/:dish_id/delete-warning",
             get(delete_warning::get_delete_warning),
         )
+        .nest_api_service("/:dish_id/weight", weight::route(state.clone()))
         .nest_api_service("/:dish_id/ingredient", ingredient::route(state.clone()))
         .with_state(state)
 }
