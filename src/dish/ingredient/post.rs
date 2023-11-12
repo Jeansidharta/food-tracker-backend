@@ -37,20 +37,49 @@ pub async fn post_ingredient(
         ingredient_id,
     }): Json<PostIngredientBody>,
 ) -> ServerResponseResult<PostIngredientResult> {
-    let data = sqlx::query_as!(
-        PostIngredientResult,
+    let current_weight = sqlx::query_scalar!(
         r#"
-        INSERT INTO
-            DishIngredient (dish_id, ingredient_id, weight)
-            VALUES (?, ?, ?)
-        RETURNING dish_id, ingredient_id, weight, creation_date;
-        "#,
+        SELECT weight
+        FROM DishIngredient 
+        WHERE dish_id = ? AND ingredient_id = ?"#,
         dish_id,
-        ingredient_id,
-        weight
+        ingredient_id
     )
-    .fetch_one(&connection)
+    .fetch_optional(&connection)
     .await?;
+
+    let data = if let Some(current_weight) = current_weight {
+        let new_weight = weight + current_weight;
+        sqlx::query_as!(
+            PostIngredientResult,
+            r#"
+            UPDATE DishIngredient
+            SET weight = ?
+            WHERE dish_id = ? AND ingredient_id = ?
+            RETURNING dish_id, ingredient_id, weight, creation_date;
+            "#,
+            new_weight,
+            dish_id,
+            ingredient_id
+        )
+        .fetch_one(&connection)
+        .await?
+    } else {
+        sqlx::query_as!(
+            PostIngredientResult,
+            r#"
+            INSERT INTO
+                DishIngredient (dish_id, ingredient_id, weight)
+                VALUES (?, ?, ?)
+            RETURNING dish_id, ingredient_id, weight, creation_date;
+            "#,
+            dish_id,
+            ingredient_id,
+            weight
+        )
+        .fetch_one(&connection)
+        .await?
+    };
 
     Ok(ServerResponse::success(data).json())
 }
