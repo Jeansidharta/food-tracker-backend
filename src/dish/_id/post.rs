@@ -1,5 +1,3 @@
-use std::{future::Future, pin::Pin};
-
 use axum::{
     extract::{Path, State},
     Json,
@@ -96,71 +94,46 @@ pub async fn post_edit_dish(
     )
     .fetch_one(&connection)
     .await?;
-    let insert_dish_futures = dish_ingredients
-        .iter()
-        .map(
-            |ingredient| -> Pin<Box<dyn Future<Output = anyhow::Result<DishIngredient>> + Send>> {
-                let connection = connection.clone();
-                Box::pin(async move {
-                    let current_ingredient = sqlx::query_scalar!(
-                        "SELECT dish_id FROM DishIngredient WHERE dish_id = ? AND ingredient_id = ?;",
-                        id,
-                        ingredient.ingredient_id
-                    )
-                    .fetch_optional(&connection)
-                    .await?;
 
-                    Ok(if current_ingredient.is_some() {
-                        sqlx::query_as!(
-                            DishIngredient,
-                            r#"
-                            UPDATE DishIngredient
-                                SET weight = ?
-                            WHERE dish_id = ? AND ingredient_id = ?
-                            RETURNING dish_id, ingredient_id, weight, creation_date;"#,
-                            ingredient.weight,
-                            id,
-                            ingredient.ingredient_id
-                        )
-                        .fetch_one(&connection)
-                        .await?
-                    } else {
-                        sqlx::query_as!(
-                            DishIngredient,
-                            r#"
-                            INSERT INTO DishIngredient
-                                (dish_id, ingredient_id, weight)
-                            VALUES (?, ?, ?)
-                            RETURNING dish_id, ingredient_id, weight, creation_date;"#,
-                            id,
-                            ingredient.ingredient_id,
-                            ingredient.weight,
-                        )
-                        .fetch_one(&connection)
-                        .await?
-                    })
-                })
-            },
+    let new_dish_ingredients = if dish_ingredients.is_empty() {
+        vec![]
+    } else {
+        sqlx::QueryBuilder::new(
+            r#"
+        INSERT OR REPLACE INTO DishIngredient
+            (dish_id, ingredient_id, weight)"#,
         )
-        .collect::<Vec<Pin<Box<dyn Future<Output = anyhow::Result<DishIngredient>> + Send>>>>();
-
-    let new_dish_ingredients = futures::future::join_all(insert_dish_futures)
-        .await
-        .into_iter()
-        .collect::<anyhow::Result<Vec<DishIngredient>>>()?;
+        .push_values(dish_ingredients.iter(), |mut b, ingredient| {
+            b.push_bind(id)
+                .push_bind(ingredient.ingredient_id)
+                .push_bind(ingredient.weight);
+        })
+        .push("RETURNING dish_id, ingredient_id, weight, creation_date;")
+        .build_query_as::<DishIngredient>()
+        .fetch_all(&connection)
+        .await?
+    };
 
     let mut query = sqlx::QueryBuilder::new(
         r#"
         DELETE FROM DishIngredient
         WHERE
             ingredient_id IN
-                (SELECT ingredient_id FROM DishIngredient where dish_id = 2)
-            AND NOT ingredient_id IN ("#,
+                (SELECT ingredient_id FROM DishIngredient where dish_id = "#,
     );
-    dish_ingredients.into_iter().for_each(|i| {
-        query.push(i.ingredient_id);
-    });
-    query.push(");").build().execute(&connection).await?;
+    query.push_bind(id);
+    query.push(r#" AND NOT ingredient_id IN ("#);
+
+    query.push(
+        dish_ingredients
+            .into_iter()
+            .map(|i| i.ingredient_id.to_string())
+            .collect::<Vec<String>>()
+            .join(", "),
+    );
+    query.push("));");
+    println!("{}", query.sql());
+    query.build().execute(&connection).await?;
 
     transaction.commit().await?;
 
