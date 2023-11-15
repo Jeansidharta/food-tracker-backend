@@ -100,40 +100,28 @@ pub async fn post_edit_dish(
     } else {
         sqlx::QueryBuilder::new(
             r#"
-        INSERT OR REPLACE INTO DishIngredient
-            (dish_id, ingredient_id, weight)"#,
+            DELETE FROM DishIngredient WHERE dish_id = "#,
+        )
+        .push_bind(id)
+        .push(
+            r#";
+            INSERT INTO DishIngredient
+                (dish_id, ingredient_id, weight)"#,
         )
         .push_values(dish_ingredients.iter(), |mut b, ingredient| {
             b.push_bind(id)
                 .push_bind(ingredient.ingredient_id)
                 .push_bind(ingredient.weight);
         })
-        .push("RETURNING dish_id, ingredient_id, weight, creation_date;")
+        .push(
+            r#"
+            ON CONFLICT DO UPDATE SET weight = DishIngredient.weight + excluded.weight
+            RETURNING dish_id, ingredient_id, weight, creation_date;"#,
+        )
         .build_query_as::<DishIngredient>()
         .fetch_all(&connection)
         .await?
     };
-
-    let mut query = sqlx::QueryBuilder::new(
-        r#"
-        DELETE FROM DishIngredient
-        WHERE
-            ingredient_id IN
-                (SELECT ingredient_id FROM DishIngredient where dish_id = "#,
-    );
-    query.push_bind(id);
-    query.push(r#" AND NOT ingredient_id IN ("#);
-
-    query.push(
-        dish_ingredients
-            .into_iter()
-            .map(|i| i.ingredient_id.to_string())
-            .collect::<Vec<String>>()
-            .join(", "),
-    );
-    query.push("));");
-    println!("{}", query.sql());
-    query.build().execute(&connection).await?;
 
     transaction.commit().await?;
 

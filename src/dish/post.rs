@@ -93,7 +93,12 @@ pub async fn post_dish(
                     .push_bind(dish_ingredient.ingredient_id)
                     .push_bind(dish_ingredient.weight);
             })
-            .push("RETURNING *;")
+            .push(
+                r#"
+            ON CONFLICT DO
+            UPDATE SET weight = DishIngredient.weight + excluded.weight
+            RETURNING dish_id, ingredient_id, weight, creation_date;"#,
+            )
             .build_query_as::<DishIngredient>()
             .fetch_all(&connection)
             .await?
