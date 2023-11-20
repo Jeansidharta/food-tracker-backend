@@ -44,11 +44,8 @@ pub async fn get_meal(
             id,
             creation_date,
             duration,
-            desire_to_eat,
             description,
-            eat_date,
-            fullness_afterwards,
-            hunger_level
+            eat_date
         FROM Meal
         WHERE id = ?;"#,
         id

@@ -50,9 +50,6 @@ pub struct Meal {
     pub eat_date: Option<i64>,
     pub duration: Option<i64>,
     pub description: Option<String>,
-    pub hunger_level: Option<i64>,
-    pub desire_to_eat: Option<i64>,
-    pub fullness_afterwards: Option<i64>,
 }
 
 #[derive(Serialize, sqlx::FromRow, Default, JsonSchema)]
@@ -68,9 +65,6 @@ pub struct NewMeal {
     pub eat_date: Option<i64>,
     pub duration: Option<i64>,
     pub description: Option<String>,
-    pub hunger_level: Option<i64>,
-    pub desire_to_eat: Option<i64>,
-    pub fullness_afterwards: Option<i64>,
 }
 
 #[derive(Default, JsonSchema)]

@@ -1,0 +1,3 @@
+ALTER TABLE Meal ADD COLUMN hunger_level INTEGER;
+ALTER TABLE Meal ADD COLUMN desire_to_eat INTEGER;
+ALTER TABLE Meal ADD COLUMN fullness_afterwards INTEGER;

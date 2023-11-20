@@ -5,9 +5,10 @@ use sqlx::QueryBuilder;
 use thiserror::Error;
 
 use crate::{
+    get_missing_items,
     models::{Meal, MealDish, NewMeal},
     server::{ServerResponse, ServerResponseResult},
-    state::AppState, get_missing_items,
+    state::AppState,
 };
 
 #[derive(Deserialize, JsonSchema)]
@@ -22,9 +23,6 @@ impl From<PostMealBody> for NewMeal {
             eat_date: val.eat_date,
             duration: val.duration,
             description: val.description,
-            hunger_level: val.hunger_level,
-            desire_to_eat: val.desire_to_eat,
-            fullness_afterwards: val.fullness_afterwards,
         }
     }
 }
@@ -34,9 +32,6 @@ pub struct PostMealBody {
     pub eat_date: Option<i64>,
     pub duration: Option<i64>,
     pub description: Option<String>,
-    pub hunger_level: Option<i64>,
-    pub desire_to_eat: Option<i64>,
-    pub fullness_afterwards: Option<i64>,
     pub dishes: Vec<PostMealDish>,
 }
 
@@ -90,17 +85,11 @@ pub async fn post_meal(
         r#"INSERT INTO Meal (
             eat_date,
             duration,
-            description,
-            hunger_level,
-            desire_to_eat,
-            fullness_afterwards
-        ) VALUES (?, ?, ?, ?, ?, ?) RETURNING *;"#,
+            description
+        ) VALUES (?, ?, ?) RETURNING *;"#,
         post_meal.eat_date,
         post_meal.duration,
-        post_meal.description,
-        post_meal.hunger_level,
-        post_meal.desire_to_eat,
-        post_meal.fullness_afterwards,
+        post_meal.description
     )
     .fetch_one(&connection)
     .await?;
