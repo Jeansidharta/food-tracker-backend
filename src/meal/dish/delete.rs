@@ -2,7 +2,10 @@ use axum::extract::{Path, State};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::{server::{ServerResponse, ServerResponseResult}, state::AppState};
+use crate::{
+    server::{ServerResponse, ServerResponseResult},
+    state::AppState,
+};
 
 #[derive(Deserialize, JsonSchema)]
 pub struct DishId {

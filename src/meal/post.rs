@@ -6,15 +6,29 @@ use thiserror::Error;
 
 use crate::{
     get_missing_items,
-    models::{Meal, MealDish, NewMeal},
+    models::{Meal, NewMeal},
     server::{ServerResponse, ServerResponseResult},
     state::AppState,
 };
 
-#[derive(Deserialize, JsonSchema)]
-pub struct PostMealDish {
+struct Component {
+    id: i64,
     weight: i64,
-    dish_id: i64,
+}
+
+#[derive(Serialize, sqlx::FromRow, JsonSchema)]
+pub struct MealComponent {
+    pub creation_date: i64,
+    pub id: i64,
+    pub meal_id: i64,
+    pub weight: i64,
+}
+
+#[derive(Deserialize, JsonSchema)]
+pub struct PostMealComponent {
+    weight: i64,
+    dish_id: Option<i64>,
+    ingredient_id: Option<i64>,
 }
 
 impl From<PostMealBody> for NewMeal {
@@ -32,51 +46,100 @@ pub struct PostMealBody {
     pub eat_date: Option<i64>,
     pub duration: Option<i64>,
     pub description: Option<String>,
-    pub dishes: Vec<PostMealDish>,
+    pub components: Vec<PostMealComponent>,
 }
 
 #[derive(Serialize, JsonSchema)]
 pub struct PostMealResult {
     meal: Meal,
-    meal_dishes: Vec<MealDish>,
+    meal_dishes: Vec<MealComponent>,
+    meal_ingredients: Vec<MealComponent>,
 }
 
 #[derive(Error, Debug)]
 enum PostMealError {
     #[error("The following dishes don't exits: {0:?}")]
     UnknownDishId(Vec<i64>),
+    #[error("In one of the components provided, there was no dish_id and no ingredient_id")]
+    NoDishIdProvided,
+    #[error("In one of the components provided, both dish_id and ingredient_id were provided")]
+    DishIdAndIngredientIdProvided,
+}
+
+enum ComponentType {
+    Ingredient,
+    Dish,
+}
+
+impl ComponentType {
+    fn to_string(self) -> &'static str {
+        match self {
+            ComponentType::Ingredient => "Ingredient",
+            ComponentType::Dish => "Dish",
+        }
+    }
+}
+
+async fn check_missing_component(
+    connection: &sqlx::Pool<sqlx::Sqlite>,
+    component_type: ComponentType,
+    component_ids: &Vec<Component>,
+) -> anyhow::Result<()> {
+    if component_ids.is_empty() {
+        return Ok(());
+    }
+
+    let unknown_parts = {
+        let ids = component_ids
+            .iter()
+            .map(|item| item.id.to_string())
+            .collect::<Vec<String>>()
+            .join(", ");
+
+        let dishes_in_database = sqlx::QueryBuilder::new("SELECT id FROM ")
+            .push(component_type.to_string())
+            .push(" Dish WHERE id IN (")
+            .push(ids)
+            .push(")")
+            .build_query_scalar::<i64>()
+            .fetch_all(connection)
+            .await?;
+
+        get_missing_items(dishes_in_database, component_ids.iter().map(|i| i.id))
+    };
+
+    if !unknown_parts.is_empty() {
+        return Err(PostMealError::UnknownDishId(unknown_parts))?;
+    }
+    Ok(())
 }
 
 pub async fn post_meal(
     State(AppState { connection }): State<AppState>,
     Json(post_meal): Json<PostMealBody>,
 ) -> ServerResponseResult<PostMealResult> {
-    if !post_meal.dishes.is_empty() {
-        let unknown_ingredients = {
-            let ids = post_meal
-                .dishes
-                .iter()
-                .map(|item| item.dish_id.to_string())
-                .collect::<Vec<String>>()
-                .join(", ");
+    let (dishes, ingredients) = post_meal.components.into_iter().try_fold(
+        (vec![], vec![]),
+        |(mut dishAcc, mut ingredientAcc),
+         PostMealComponent {
+             weight,
+             dish_id,
+             ingredient_id,
+         }| {
+            match (dish_id, ingredient_id) {
+                (None, None) => return Err(PostMealError::NoDishIdProvided),
+                (None, Some(id)) => ingredientAcc.push(Component { id, weight }),
+                (Some(id), None) => dishAcc.push(Component { id, weight }),
+                (Some(_), Some(_)) => return Err(PostMealError::DishIdAndIngredientIdProvided),
+            }
+            Ok((dishAcc, ingredientAcc))
+        },
+    )?;
 
-            let dishes_in_database = sqlx::QueryBuilder::new("SELECT id FROM Dish WHERE id IN (")
-                .push(ids)
-                .push(")")
-                .build_query_scalar::<i64>()
-                .fetch_all(&connection)
-                .await?;
-
-            get_missing_items(
-                dishes_in_database,
-                post_meal.dishes.iter().map(|d| d.dish_id),
-            )
-        };
-
-        if !unknown_ingredients.is_empty() {
-            return Err(PostMealError::UnknownDishId(unknown_ingredients))?;
-        }
-    }
+    futures::try_join!(
+        check_missing_component(&connection, ComponentType::Dish, &dishes),
+        check_missing_component(&connection, ComponentType::Ingredient, &ingredients)
+    )?;
 
     let transaction = connection.begin().await?;
 
@@ -94,15 +157,25 @@ pub async fn post_meal(
     .fetch_one(&connection)
     .await?;
 
-    let meal_dishes = if !post_meal.dishes.is_empty() {
-        QueryBuilder::new("INSERT INTO MealDish (meal_id, dish_id, weight)")
-            .push_values(post_meal.dishes, |mut b, dish| {
-                b.push_bind(meal.id)
-                    .push_bind(dish.dish_id)
-                    .push_bind(dish.weight);
+    let meal_ingredients = if !ingredients.is_empty() {
+        QueryBuilder::new("INSERT INTO MealIngredient (meal_id, ingredient_id, weight)")
+            .push_values(ingredients, |mut b, Component { id, weight }| {
+                b.push_bind(meal.id).push_bind(id).push_bind(weight);
             })
-            .push("RETURNING *")
-            .build_query_as::<MealDish>()
+            .push("RETURNING meal_id, ingredient_id as id, weight, creation_date")
+            .build_query_as::<MealComponent>()
+            .fetch_all(&connection)
+            .await?
+    } else {
+        vec![]
+    };
+    let meal_dishes = if !dishes.is_empty() {
+        QueryBuilder::new("INSERT INTO MealDish (meal_id, dish_id, weight)")
+            .push_values(dishes, |mut b, Component { id, weight }| {
+                b.push_bind(meal.id).push_bind(id).push_bind(weight);
+            })
+            .push("RETURNING meal_id, dish_id as id, weight, creation_date")
+            .build_query_as::<MealComponent>()
             .fetch_all(&connection)
             .await?
     } else {
@@ -111,5 +184,10 @@ pub async fn post_meal(
 
     transaction.commit().await?;
 
-    Ok(ServerResponse::success(PostMealResult { meal, meal_dishes }).json())
+    Ok(ServerResponse::success(PostMealResult {
+        meal,
+        meal_dishes,
+        meal_ingredients,
+    })
+    .json())
 }

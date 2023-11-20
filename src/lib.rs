@@ -12,10 +12,10 @@ use serde::Deserialize;
 pub use server::server;
 mod state;
 
-pub fn get_missing_items(
-    list: Vec<i64>,
-    required_items: impl IntoIterator<Item = i64>,
-) -> Vec<i64> {
+pub fn get_missing_items<T: PartialEq>(
+    list: Vec<T>,
+    required_items: impl IntoIterator<Item = T>,
+) -> Vec<T> {
     let mut unknown_ingredients = vec![];
     required_items.into_iter().for_each(|item| {
         if !list.contains(&item) {
@@ -28,4 +28,15 @@ pub fn get_missing_items(
 #[derive(JsonSchema, Deserialize)]
 pub struct PathId {
     pub id: i64,
+}
+
+pub trait LoggableQuery {
+    fn log(&mut self) -> &mut Self;
+}
+
+impl LoggableQuery for sqlx::QueryBuilder<'_, sqlx::Sqlite> {
+    fn log(&mut self) -> &mut Self {
+        println!("{}", self.sql());
+        self
+    }
 }

@@ -10,16 +10,17 @@ use crate::{
 };
 
 #[derive(Serialize, JsonSchema)]
-pub struct MealDish {
+pub struct MealComponent {
     weight: i64,
-    dish_name: Option<String>,
-    dish_id: i64,
+    name: Option<String>,
+    id: i64,
 }
 
 #[derive(Serialize, JsonSchema)]
 pub struct GetMealResponse {
     meal: Meal,
-    dishes: Vec<MealDish>,
+    dishes: Vec<MealComponent>,
+    ingredients: Vec<MealComponent>,
 }
 
 #[derive(Error, Debug)]
@@ -33,11 +34,11 @@ pub struct MealId {
     meal_id: i64,
 }
 
-pub async fn get_meal(
-    State(AppState { connection }): State<AppState>,
-    Path(MealId { meal_id: id }): Path<MealId>,
-) -> ServerResponseResult<GetMealResponse> {
-    let meal = sqlx::query_as!(
+async fn get_meal_table(
+    connection: &sqlx::Pool<sqlx::Sqlite>,
+    meal_id: i64,
+) -> anyhow::Result<Meal> {
+    Ok(sqlx::query_as!(
         Meal,
         r#"
         SELECT
@@ -48,28 +49,71 @@ pub async fn get_meal(
             eat_date
         FROM Meal
         WHERE id = ?;"#,
-        id
+        meal_id
     )
-    .fetch_optional(&connection)
+    .fetch_optional(connection)
     .await?
-    .ok_or(GetMeal::MealNotFound(id))?;
+    .ok_or(GetMeal::MealNotFound(meal_id))?)
+}
 
-    let dishes = sqlx::query_as!(
-        MealDish,
+async fn get_meal_ingredients_table(
+    connection: &sqlx::Pool<sqlx::Sqlite>,
+    meal_id: i64,
+) -> anyhow::Result<Vec<MealComponent>> {
+    Ok(sqlx::query_as!(
+        MealComponent,
+        r#"
+        SELECT 
+            MealIngredient.weight,
+            Ingredient.name as name,
+            Ingredient.id as id
+        FROM Meal
+            JOIN MealIngredient ON Meal.id = MealIngredient.meal_id
+            JOIN Ingredient ON MealIngredient.ingredient_id = Ingredient.id
+        WHERE Meal.id = ?;
+        "#,
+        meal_id
+    )
+    .fetch_all(connection)
+    .await?)
+}
+
+async fn get_meal_dishes_table(
+    connection: &sqlx::Pool<sqlx::Sqlite>,
+    meal_id: i64,
+) -> anyhow::Result<Vec<MealComponent>> {
+    Ok(sqlx::query_as!(
+        MealComponent,
         r#"
         SELECT 
             MealDish.weight,
-            Dish.name as dish_name,
-            Dish.id as dish_id
+            Dish.name as name,
+            Dish.id as id
         FROM Meal
             JOIN MealDish ON Meal.id = MealDish.meal_id
             JOIN Dish ON MealDish.dish_id = Dish.id
         WHERE Meal.id = ?;
         "#,
-        id
+        meal_id
     )
-    .fetch_all(&connection)
-    .await?;
+    .fetch_all(connection)
+    .await?)
+}
 
-    Ok(ServerResponse::success(GetMealResponse { meal, dishes }).json())
+pub async fn get_meal(
+    State(AppState { connection }): State<AppState>,
+    Path(MealId { meal_id }): Path<MealId>,
+) -> ServerResponseResult<GetMealResponse> {
+    let (meal, dishes, ingredients) = futures::try_join!(
+        get_meal_table(&connection, meal_id),
+        get_meal_dishes_table(&connection, meal_id),
+        get_meal_ingredients_table(&connection, meal_id),
+    )?;
+
+    Ok(ServerResponse::success(GetMealResponse {
+        meal,
+        dishes,
+        ingredients,
+    })
+    .json())
 }
