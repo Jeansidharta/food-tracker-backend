@@ -19,7 +19,7 @@ pub async fn list_meal(
             description,
             eat_date
         FROM Meal
-        ORDER BY eat_date DESC;"#
+        ORDER BY eat_date DESC NULLS FIRST;"#
     )
     .fetch_all(&connection)
     .await?;
