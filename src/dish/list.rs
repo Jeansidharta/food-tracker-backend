@@ -14,7 +14,7 @@ pub struct ListDishResponse {
     name: Option<String>,
     prep_date: Option<i64>,
     creation_date: i64,
-    is_finished: bool,
+    is_finished: i64,
 }
 
 #[derive(JsonSchema, Deserialize)]

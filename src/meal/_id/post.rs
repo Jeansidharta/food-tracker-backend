@@ -158,10 +158,12 @@ pub async fn post_meal(
             eat_date = ?,
             duration = ?,
             description = ?
-        RETURNING id, creation_date, eat_date, duration, description;"#,
+        WHERE Meal.id = ?
+        RETURNING id as 'id!', creation_date, eat_date, duration, description;"#,
         post_meal.eat_date,
         post_meal.duration,
-        post_meal.description
+        post_meal.description,
+        id
     )
     .fetch_one(&connection)
     .await?;
