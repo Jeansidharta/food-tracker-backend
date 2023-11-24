@@ -10,6 +10,14 @@ use crate::{
 };
 
 #[derive(Serialize, JsonSchema)]
+pub struct UsedAt {
+    meal_description: Option<String>,
+    meal_id: i64,
+    eat_date: Option<i64>,
+    weight: Option<i64>,
+}
+
+#[derive(Serialize, JsonSchema)]
 pub struct AddedIngredient {
     addition_date: i64,
     weight: i64,
@@ -21,6 +29,7 @@ pub struct AddedIngredient {
 pub struct GetDishResponse {
     dish: Dish,
     added_ingredients: Vec<AddedIngredient>,
+    used_at: Vec<UsedAt>,
 }
 
 #[derive(Error, Debug)]
@@ -71,9 +80,26 @@ pub async fn get_dish(
     .into_iter()
     .collect();
 
+    let used_at = sqlx::query_as!(
+        UsedAt,
+        r#"
+        SELECT
+            MealDish.meal_id,
+            MealDish.weight as weight,
+            Meal.eat_date,
+            Meal.description as meal_description
+        FROM MealDish JOIN Meal ON Meal.id = MealDish.meal_id
+        WHERE dish_id = ?
+        ORDER BY Meal.eat_date DESC NULLS FIRST;
+        "#,
+        id
+    )
+    .fetch_all(&connection)
+    .await?;
     Ok(ServerResponse::success(GetDishResponse {
         dish,
         added_ingredients,
+        used_at
     })
     .json())
 }
