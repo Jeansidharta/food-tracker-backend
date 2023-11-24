@@ -1,55 +1,55 @@
-use axum::extract::State;
+use axum::extract::{Query, State};
 use schemars::JsonSchema;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 
 use crate::{
     server::{ServerResponse, ServerResponseResult},
     state::AppState,
 };
 
-pub struct ListDishQuery {
-    id: i64,
-    name: Option<String>,
-    prep_date: Option<i64>,
-    creation_date: i64,
-    ingredients_count: Option<i64>,
-}
-
-#[derive(JsonSchema, Serialize)]
+#[derive(FromRow, JsonSchema, Serialize)]
 pub struct ListDishResponse {
     id: i64,
     name: Option<String>,
     prep_date: Option<i64>,
     creation_date: i64,
-    ingredients_count: i64,
+    is_finished: bool,
+}
+
+#[derive(JsonSchema, Deserialize)]
+pub struct ListDishQueryParams {
+    is_finished: Option<bool>,
 }
 
 pub async fn list_dish(
     State(AppState { connection }): State<AppState>,
+    Query(query_params): Query<ListDishQueryParams>,
 ) -> ServerResponseResult<Vec<ListDishResponse>> {
-    let dishes = sqlx::query_as_unchecked!(
-        ListDishQuery,
+    let mut queries = sqlx::QueryBuilder::new(
         r#"
         SELECT 
-            (SELECT COUNT(DishIngredient.dish_id) FROM DishIngredient WHERE DishIngredient.dish_id = Dish.id) AS ingredients_count,
             id,
             name,
             creation_date,
-            prep_date
+            prep_date,
+            is_finished
         FROM Dish
-        ORDER BY prep_date DESC"#
-    )
-    .fetch_all(&connection)
-    .await?
-    .into_iter()
-    .map(|i| ListDishResponse {
-        ingredients_count: i.ingredients_count.unwrap_or(0),
-        id: i.id,
-        name: i.name,
-        prep_date: i.prep_date,
-        creation_date: i.creation_date,
-    })
-    .collect();
+        "#,
+    );
+
+    if let Some(is_finished) = query_params.is_finished {
+        queries
+            .push("WHERE is_finished = ")
+            .push(is_finished)
+            .push("\n");
+    }
+
+    let dishes = queries
+        .push("ORDER BY prep_date DESC")
+        .build_query_as::<ListDishResponse>()
+        .fetch_all(&connection)
+        .await?;
 
     Ok(ServerResponse::success(dishes).json())
 }

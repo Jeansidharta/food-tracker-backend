@@ -20,6 +20,7 @@ pub struct Dish {
     pub prep_date: Option<i64>,
     pub name: Option<String>,
     pub total_weight: i64,
+    pub is_finished: i64,
 }
 
 #[derive(sqlx::FromRow, Serialize, JsonSchema)]

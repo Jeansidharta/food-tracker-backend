@@ -78,7 +78,7 @@ pub async fn post_dish(
             (name, prep_date, total_weight)
         VALUES
             (?, ?, ?)
-        RETURNING id, creation_date, prep_date, name, total_weight;",
+        RETURNING id, creation_date, prep_date, name, total_weight, is_finished;",
         name,
         prep_date,
         total_weight

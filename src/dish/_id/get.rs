@@ -51,7 +51,12 @@ pub async fn get_dish(
         Dish,
         r#"
         SELECT 
-            id, creation_date, name, prep_date, total_weight
+            id,
+            creation_date,
+            name,
+            prep_date,
+            total_weight,
+            is_finished
         FROM Dish
         WHERE Dish.id = ?"#,
         id
@@ -99,7 +104,7 @@ pub async fn get_dish(
     Ok(ServerResponse::success(GetDishResponse {
         dish,
         added_ingredients,
-        used_at
+        used_at,
     })
     .json())
 }

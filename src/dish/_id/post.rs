@@ -25,6 +25,7 @@ pub struct PostDish {
     prep_date: Option<i64>,
     dish_ingredients: Option<Vec<PostDishIngredient>>,
     total_weight: Option<i64>,
+    is_finished: Option<bool>,
 }
 
 #[derive(Error, Debug)]
@@ -46,6 +47,7 @@ pub async fn post_edit_dish(
         name,
         prep_date,
         dish_ingredients,
+        is_finished,
     }): Json<PostDish>,
 ) -> ServerResponseResult<(Dish, Vec<DishIngredient>)> {
     let dish_ingredients = dish_ingredients.unwrap_or_default();
@@ -84,11 +86,22 @@ pub async fn post_edit_dish(
     let new_dish = sqlx::query_as!(
         Dish,
         r#"UPDATE Dish SET
-            name = ?, prep_date = ?, total_weight = ?
+            name = ?,
+            prep_date = ?,
+            is_finished = ?,
+            total_weight = ?
         WHERE id = ?
-        RETURNING id as "id!", creation_date, prep_date, name, total_weight;"#,
+        RETURNING
+            id as "id!",
+            creation_date,
+            prep_date,
+            name,
+            total_weight,
+            is_finished;
+        "#,
         name,
         prep_date,
+        is_finished,
         total_weight,
         id
     )
