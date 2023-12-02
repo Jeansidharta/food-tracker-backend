@@ -14,6 +14,7 @@ pub struct MealComponent {
     weight: i64,
     name: Option<String>,
     id: i64,
+    kcal_100g: Option<i64>,
 }
 
 #[derive(Serialize, JsonSchema)]
@@ -66,10 +67,12 @@ async fn get_meal_ingredients_table(
         SELECT 
             MealIngredient.weight,
             Ingredient.name as name,
-            Ingredient.id as id
+            Ingredient.id as id,
+            kcal_100g
         FROM Meal
             JOIN MealIngredient ON Meal.id = MealIngredient.meal_id
             JOIN Ingredient ON MealIngredient.ingredient_id = Ingredient.id
+            JOIN IngredientProperties ON IngredientProperties.ingredient_id = Ingredient.id
         WHERE Meal.id = ?;
         "#,
         meal_id
@@ -88,7 +91,22 @@ async fn get_meal_dishes_table(
         SELECT 
             MealDish.weight,
             Dish.name as name,
-            Dish.id as id
+            Dish.id as id,
+            (
+                SELECT (
+                    TOTAL (kcal_100g * weight) / (
+                        CASE WHEN Dish.total_weight IS NULL THEN
+                            SUM(weight)
+                        ELSE
+                            Dish.total_weight
+                        END
+                    )
+                ) as kcal_100g
+                FROM DishIngredient
+                JOIN Ingredient on Ingredient.id = DishIngredient.ingredient_id
+                JOIN IngredientProperties on Ingredient.id = IngredientProperties.ingredient_id
+                WHERE DishIngredient.dish_id = Dish.id
+            ) as 'kcal_100g: i64'
         FROM Meal
             JOIN MealDish ON Meal.id = MealDish.meal_id
             JOIN Dish ON MealDish.dish_id = Dish.id

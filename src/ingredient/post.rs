@@ -1,14 +1,21 @@
 use axum::{extract::State, Json};
+use schemars::JsonSchema;
+use serde::Deserialize;
 
 use crate::{
-    models::{Ingredient, NewIngredient},
+    models::Ingredient,
     server::{ServerResponse, ServerResponseResult},
     state::AppState,
 };
 
+#[derive(Deserialize, JsonSchema)]
+pub struct PostIngredientBody {
+    pub name: String,
+}
+
 pub async fn post_ingredient(
     State(AppState { connection }): State<AppState>,
-    Json(NewIngredient { name }): Json<NewIngredient>,
+    Json(PostIngredientBody { name }): Json<PostIngredientBody>,
 ) -> ServerResponseResult<Ingredient> {
     let data = sqlx::query_as!(
         Ingredient,

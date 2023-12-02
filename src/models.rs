@@ -8,11 +8,6 @@ pub struct Ingredient {
     pub name: String,
 }
 
-#[derive(PartialEq, PartialOrd, Deserialize, JsonSchema)]
-pub struct NewIngredient {
-    pub name: String,
-}
-
 #[derive(Serialize, JsonSchema)]
 pub struct Dish {
     pub id: i64,
