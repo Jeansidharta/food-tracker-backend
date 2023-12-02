@@ -72,7 +72,7 @@ async fn get_meal_ingredients_table(
         FROM Meal
             JOIN MealIngredient ON Meal.id = MealIngredient.meal_id
             JOIN Ingredient ON MealIngredient.ingredient_id = Ingredient.id
-            JOIN IngredientProperties ON IngredientProperties.ingredient_id = Ingredient.id
+            LEFT JOIN IngredientProperties ON IngredientProperties.ingredient_id = Ingredient.id
         WHERE Meal.id = ?;
         "#,
         meal_id

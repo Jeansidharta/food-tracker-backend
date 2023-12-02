@@ -78,7 +78,7 @@ pub async fn get_dish(
         FROM Dish
             JOIN DishIngredient ON Dish.id = DishIngredient.dish_id
             JOIN Ingredient on DishIngredient.ingredient_id = Ingredient.id
-            JOIN IngredientProperties on IngredientProperties.ingredient_id = Ingredient.id
+            LEFT JOIN IngredientProperties on IngredientProperties.ingredient_id = Ingredient.id
         WHERE Dish.id = ?;
         "#,
         id
