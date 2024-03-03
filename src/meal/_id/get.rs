@@ -14,7 +14,10 @@ pub struct MealComponent {
     weight: i64,
     name: Option<String>,
     id: i64,
-    kcal_100g: Option<i64>,
+    kcal: Option<i64>,
+    proteins: Option<i64>,
+    fat: Option<i64>,
+    carbohydrates: Option<i64>,
 }
 
 #[derive(Serialize, JsonSchema)]
@@ -68,7 +71,10 @@ async fn get_meal_ingredients_table(
             MealIngredient.weight,
             Ingredient.name as name,
             Ingredient.id as id,
-            kcal_100g
+            iif(kcal_100g, CAST ((kcal_100g * MealIngredient.weight / 100) AS INTEGER), NULL) as kcal,
+            iif(fat_100g, CAST ((fat_100g * MealIngredient.weight / 100) AS INTEGER), NULL) as fat,
+            iif(carbohydrates_100g, CAST ((carbohydrates_100g * MealIngredient.weight / 100) AS INTEGER), NULL) as carbohydrates,
+            iif(proteins_100g, CAST ((proteins_100g * MealIngredient.weight / 100) AS INTEGER), NULL) as proteins
         FROM Meal
             JOIN MealIngredient ON Meal.id = MealIngredient.meal_id
             JOIN Ingredient ON MealIngredient.ingredient_id = Ingredient.id
@@ -81,41 +87,131 @@ async fn get_meal_ingredients_table(
     .await?)
 }
 
-async fn get_meal_dishes_table(
-    connection: &sqlx::Pool<sqlx::Sqlite>,
-    meal_id: i64,
-) -> anyhow::Result<Vec<MealComponent>> {
-    Ok(sqlx::query_as!(
-        MealComponent,
-        r#"
+mod meal_dishes {
+    use std::collections::HashMap;
+
+    use schemars::JsonSchema;
+    use serde::Serialize;
+    use sqlx::Sqlite;
+
+    use super::MealComponent;
+
+    #[derive(Serialize, JsonSchema)]
+    pub struct DatabaseDish {
+        weight: i64,
+        dish_total_weight: Option<i64>,
+        name: Option<String>,
+        id: i64,
+    }
+
+    #[derive(Serialize, JsonSchema, sqlx::FromRow)]
+    pub struct DatabaseDishIngredient {
+        dish_id: i64,
+        ingredient_weight: i64,
+        kcal_100g: Option<i64>,
+        proteins_100g: Option<i64>,
+        fat_100g: Option<i64>,
+        carbohydrates_100g: Option<i64>,
+    }
+
+    pub async fn get_meal_dishes_table(
+        connection: &sqlx::Pool<sqlx::Sqlite>,
+        meal_id: i64,
+    ) -> anyhow::Result<Vec<MealComponent>> {
+        let dishes = sqlx::query_as!(
+            DatabaseDish,
+            r#"
         SELECT 
             MealDish.weight,
-            Dish.name as name,
-            Dish.id as id,
-            (
-                SELECT (
-                    TOTAL (kcal_100g * weight) / (
-                        CASE WHEN Dish.total_weight IS NULL THEN
-                            SUM(weight)
-                        ELSE
-                            Dish.total_weight
-                        END
-                    )
-                ) as kcal_100g
-                FROM DishIngredient
-                JOIN Ingredient on Ingredient.id = DishIngredient.ingredient_id
-                JOIN IngredientProperties on Ingredient.id = IngredientProperties.ingredient_id
-                WHERE DishIngredient.dish_id = Dish.id
-            ) as 'kcal_100g: i64'
+            Dish.total_weight as dish_total_weight,
+            Dish.name,
+            Dish.id
         FROM Meal
             JOIN MealDish ON Meal.id = MealDish.meal_id
             JOIN Dish ON MealDish.dish_id = Dish.id
         WHERE Meal.id = ?;
         "#,
-        meal_id
-    )
-    .fetch_all(connection)
-    .await?)
+            meal_id
+        )
+        .fetch_all(connection)
+        .await?;
+
+        let mut dish_ingredients_dict = sqlx::QueryBuilder::<Sqlite>::new(
+            r#"
+            SELECT
+                iif(kcal_100g, CAST (kcal_100g as INTEGER), NULL) as kcal_100g,
+                iif(proteins_100g, CAST (proteins_100g as INTEGER), NULL) as proteins_100g,
+                iif(fat_100g, CAST (fat_100g as INTEGER), NULL) as fat_100g,
+                iif(carbohydrates_100g, CAST (carbohydrates_100g as INTEGER), NULL) as carbohydrates_100g,
+                DishIngredient.dish_id,
+                DishIngredient.weight as ingredient_weight
+            FROM
+                DishIngredient
+                LEFT JOIN Ingredient ON Ingredient.id = DishIngredient.ingredient_id
+                LEFT JOIN IngredientProperties ON Ingredient.id = IngredientProperties.ingredient_id
+            WHERE DishIngredient.dish_id IN 
+            "#,
+        )
+        .push_tuples(dishes.iter(), |mut p, dish| {
+            p.push_bind(dish.id);
+        })
+        .build_query_as::<DatabaseDishIngredient>()
+        .fetch_all(connection)
+        .await?
+        .into_iter()
+        .fold(
+            HashMap::<i64, Vec<DatabaseDishIngredient>>::new(),
+            |mut dict, ingredient| {
+                dict.entry(ingredient.dish_id).or_default().push(ingredient);
+                dict
+            },
+        );
+
+        Ok(dishes
+            .into_iter()
+            .map(|dish| {
+                let ingredients = dish_ingredients_dict.remove(&dish.id).unwrap_or_default();
+                let dish_total_weight = dish
+                    .dish_total_weight
+                    .unwrap_or_else(|| ingredients.iter().map(|i| i.ingredient_weight).sum());
+                let nutrients = ingredients
+                    .into_iter()
+                    .map(|i| {
+                        (
+                            i.kcal_100g.unwrap_or_default() * i.ingredient_weight
+                                / dish_total_weight,
+                            i.proteins_100g.unwrap_or_default() * i.ingredient_weight
+                                / dish_total_weight,
+                            i.fat_100g.unwrap_or_default() * i.ingredient_weight
+                                / dish_total_weight,
+                            i.carbohydrates_100g.unwrap_or_default() * i.ingredient_weight
+                                / dish_total_weight,
+                        )
+                    })
+                    .reduce(|(a1, b1, c1, d1), (a2, b2, c2, d2)| {
+                        (a1 + a2, b1 + b2, c1 + c2, d1 + d2)
+                    })
+                    .map(|(kcal_100g, proteins_100g, fat_100g, carbohydrates_100g)| {
+                        (
+                            kcal_100g * dish.weight / 100,
+                            proteins_100g * dish.weight / 100,
+                            fat_100g * dish.weight / 100,
+                            carbohydrates_100g * dish.weight / 100,
+                        )
+                    });
+
+                MealComponent {
+                    weight: dish.weight,
+                    name: dish.name,
+                    id: dish.id,
+                    kcal: nutrients.map(|n| n.0),
+                    proteins: nutrients.map(|n| n.1),
+                    fat: nutrients.map(|n| n.2),
+                    carbohydrates: nutrients.map(|n| n.3),
+                }
+            })
+            .collect())
+    }
 }
 
 pub async fn get_meal(
@@ -124,7 +220,7 @@ pub async fn get_meal(
 ) -> ServerResponseResult<GetMealResponse> {
     let (meal, dishes, ingredients) = futures::try_join!(
         get_meal_table(&connection, meal_id),
-        get_meal_dishes_table(&connection, meal_id),
+        meal_dishes::get_meal_dishes_table(&connection, meal_id),
         get_meal_ingredients_table(&connection, meal_id),
     )?;
 

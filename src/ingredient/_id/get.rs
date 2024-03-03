@@ -99,13 +99,10 @@ pub async fn get_ingredient(
     State(AppState { connection }): State<AppState>,
     Path(IngredientId { ingredient_id }): Path<IngredientId>,
 ) -> ServerResponseResult<GetIngredientResult> {
-    let (ingredient, ingredient_properties) = futures::join!(
+    let (ingredient, ingredient_properties) = futures::try_join!(
         fetch_ingredient(&connection, ingredient_id),
         fetch_ingredient_properties(&connection, ingredient_id)
-    );
-
-    let ingredient = ingredient?;
-    let ingredient_properties = ingredient_properties?;
+    )?;
 
     Ok(ServerResponse::success_code(
         GetIngredientResult {
