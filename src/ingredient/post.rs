@@ -1,8 +1,10 @@
-use axum::{extract::State, Json};
+use aide::transform::TransformOperation;
+use axum::{extract::State, http::StatusCode, Json};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::{
+    app_error::InternalServerError,
     models::Ingredient,
     server::{ServerResponse, ServerResponseResult},
     state::AppState,
@@ -25,5 +27,10 @@ pub async fn post_ingredient(
     .fetch_one(&connection)
     .await?;
 
-    Ok(ServerResponse::success(data).json())
+    Ok(ServerResponse::success_code(data, StatusCode::CREATED).json())
+}
+
+pub fn post_ingredient_docs(op: TransformOperation) -> TransformOperation {
+    op.response::<201, Json<ServerResponse<Ingredient>>>()
+        .response::<500, Json<InternalServerError>>()
 }

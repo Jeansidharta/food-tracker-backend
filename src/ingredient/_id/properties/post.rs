@@ -1,11 +1,14 @@
+use aide::transform::TransformOperation;
 use axum::{
     extract::{Path, State},
+    http::StatusCode,
     Json,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    app_error::InternalServerError,
     server::{ServerResponse, ServerResponseResult},
     state::AppState,
 };
@@ -112,5 +115,10 @@ pub async fn post_ingredient_properties(
     .fetch_one(&connection)
     .await?;
 
-    Ok(ServerResponse::success(data).json())
+    Ok(ServerResponse::success_code(data, StatusCode::CREATED).json())
+}
+
+pub fn post_ingredient_properties_docs(op: TransformOperation) -> TransformOperation {
+    op.response::<201, Json<ServerResponse<PostIngredientPropertiesResult>>>()
+        .response::<500, Json<InternalServerError>>()
 }

@@ -4,6 +4,7 @@ use aide::{
     axum::{routing::get, ApiRouter, IntoApiResponse},
     openapi::{Info, OpenApi},
     redoc::Redoc,
+    OperationOutput,
 };
 use axum::{
     http::{Request, StatusCode},
@@ -18,17 +19,29 @@ use sqlx::migrate::MigrateDatabase;
 #[derive(Deserialize, Serialize, Default, JsonSchema)]
 pub struct ServerResponse<T> {
     pub message: String,
-    pub data: Option<T>,
+    pub data: T,
     #[serde(skip)]
     pub status_code: StatusCode,
+}
+
+impl<T> OperationOutput for ServerResponse<T> {
+    type Inner = ServerResponse<T>;
 }
 
 impl<T> ServerResponse<T> {
     pub fn success(data: T) -> Self {
         Self {
             message: "success".to_string(),
-            data: Some(data),
+            data,
             status_code: StatusCode::OK,
+        }
+    }
+
+    pub fn success_code(data: T, status_code: StatusCode) -> Self {
+        Self {
+            message: "success".to_string(),
+            data,
+            status_code,
         }
     }
 
@@ -40,9 +53,9 @@ impl<T> ServerResponse<T> {
 impl ServerResponse<()> {
     pub fn error(message: impl ToString) -> Self {
         ServerResponse {
-            data: None,
+            data: (),
             message: message.to_string(),
-            status_code: StatusCode::BAD_REQUEST,
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -53,11 +66,11 @@ impl<T: Serialize> IntoResponse for ServerResponse<T> {
     }
 }
 
-pub type ServerResponseResult<T> = Result<Json<ServerResponse<T>>, AppError>;
+pub type ServerResponseResult<T> = Result<Json<ServerResponse<T>>, InternalServerError>;
 
 use crate::{
-    app_error::AppError, dish::route as route_dish, ingredient::route as route_ingredient,
-    meal::route as route_meal, state::AppState,
+    app_error::InternalServerError, dish::route as route_dish,
+    ingredient::route as route_ingredient, meal::route as route_meal, state::AppState,
 };
 
 async fn logging_middleware<B>(request: Request<B>, next: Next<B>) -> Response {
@@ -127,7 +140,7 @@ pub async fn server(port: u16, database_path: Option<PathBuf>) {
     println!("Server running on port {port}");
 
     axum::Server::bind(&std::net::SocketAddr::V4(std::net::SocketAddrV4::new(
-        std::net::Ipv4Addr::new(127, 0, 0, 1),
+        std::net::Ipv4Addr::new(0, 0, 0, 0),
         port,
     )))
     .serve(
