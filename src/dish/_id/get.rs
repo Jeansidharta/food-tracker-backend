@@ -24,6 +24,9 @@ pub struct AddedIngredient {
     ingredient_name: String,
     ingredient_id: i64,
     kcal: Option<i64>,
+    fat: Option<i64>,
+    proteins: Option<i64>,
+    carbohydrates: Option<i64>,
 }
 
 #[derive(Serialize, JsonSchema)]
@@ -74,7 +77,10 @@ pub async fn get_dish(
             ingredient.name as ingredient_name,
             DishIngredient.creation_date as addition_date,
             DishIngredient.ingredient_id,
-            iif(kcal_100g, CAST((kcal_100g * weight / 100) AS INTEGER), NULL) as kcal
+            iif(kcal_100g IS NOT NULL, CAST((kcal_100g * weight / 100) AS INTEGER), NULL) as kcal,
+            iif(proteins_100g IS NOT NULL, CAST((proteins_100g * weight / 100) AS INTEGER), NULL) as proteins,
+            iif(fat_100g IS NOT NULL, CAST((fat_100g * weight / 100) AS INTEGER), NULL) as fat,
+            iif(carbohydrates_100g IS NOT NULL, CAST((carbohydrates_100g * weight / 100) AS INTEGER), NULL) as carbohydrates
         FROM Dish
             JOIN DishIngredient ON Dish.id = DishIngredient.dish_id
             JOIN Ingredient on DishIngredient.ingredient_id = Ingredient.id

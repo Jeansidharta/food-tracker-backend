@@ -71,10 +71,10 @@ async fn get_meal_ingredients_table(
             MealIngredient.weight,
             Ingredient.name as name,
             Ingredient.id as id,
-            iif(kcal_100g, CAST ((kcal_100g * MealIngredient.weight / 100) AS INTEGER), NULL) as kcal,
-            iif(fat_100g, CAST ((fat_100g * MealIngredient.weight / 100) AS INTEGER), NULL) as fat,
-            iif(carbohydrates_100g, CAST ((carbohydrates_100g * MealIngredient.weight / 100) AS INTEGER), NULL) as carbohydrates,
-            iif(proteins_100g, CAST ((proteins_100g * MealIngredient.weight / 100) AS INTEGER), NULL) as proteins
+            iif(kcal_100g IS NOT NULL, CAST ((kcal_100g * MealIngredient.weight / 100) AS INTEGER), NULL) as kcal,
+            iif(fat_100g IS NOT NULL, CAST ((fat_100g * MealIngredient.weight / 100) AS INTEGER), NULL) as fat,
+            iif(carbohydrates_100g IS NOT NULL, CAST ((carbohydrates_100g * MealIngredient.weight / 100) AS INTEGER), NULL) as carbohydrates,
+            iif(proteins_100g IS NOT NULL, CAST ((proteins_100g * MealIngredient.weight / 100) AS INTEGER), NULL) as proteins
         FROM Meal
             JOIN MealIngredient ON Meal.id = MealIngredient.meal_id
             JOIN Ingredient ON MealIngredient.ingredient_id = Ingredient.id
@@ -98,8 +98,8 @@ mod meal_dishes {
 
     #[derive(Serialize, JsonSchema)]
     pub struct DatabaseDish {
-        weight: i64,
-        dish_total_weight: Option<i64>,
+        weight: f64,
+        dish_total_weight: Option<f64>,
         name: Option<String>,
         id: i64,
     }
@@ -107,11 +107,11 @@ mod meal_dishes {
     #[derive(Serialize, JsonSchema, sqlx::FromRow)]
     pub struct DatabaseDishIngredient {
         dish_id: i64,
-        ingredient_weight: i64,
-        kcal_100g: Option<i64>,
-        proteins_100g: Option<i64>,
-        fat_100g: Option<i64>,
-        carbohydrates_100g: Option<i64>,
+        ingredient_weight: f64,
+        kcal_100g: Option<f64>,
+        proteins_100g: Option<f64>,
+        fat_100g: Option<f64>,
+        carbohydrates_100g: Option<f64>,
     }
 
     pub async fn get_meal_dishes_table(
@@ -122,8 +122,8 @@ mod meal_dishes {
             DatabaseDish,
             r#"
         SELECT 
-            MealDish.weight,
-            Dish.total_weight as dish_total_weight,
+            (CAST (MealDish.weight AS FLOAT)) AS weight,
+            (CAST (Dish.total_weight AS FLOAT)) AS dish_total_weight,
             Dish.name,
             Dish.id
         FROM Meal
@@ -139,12 +139,12 @@ mod meal_dishes {
         let mut dish_ingredients_dict = sqlx::QueryBuilder::<Sqlite>::new(
             r#"
             SELECT
-                iif(kcal_100g, CAST (kcal_100g as INTEGER), NULL) as kcal_100g,
-                iif(proteins_100g, CAST (proteins_100g as INTEGER), NULL) as proteins_100g,
-                iif(fat_100g, CAST (fat_100g as INTEGER), NULL) as fat_100g,
-                iif(carbohydrates_100g, CAST (carbohydrates_100g as INTEGER), NULL) as carbohydrates_100g,
+                iif(kcal_100g IS NOT NULL, CAST (kcal_100g AS FLOAT), NULL) AS kcal_100g,
+                iif(proteins_100g IS NOT NULL, CAST (proteins_100g AS FLOAT), NULL) AS proteins_100g,
+                iif(fat_100g IS NOT NULL, CAST (fat_100g AS FLOAT), NULL) AS fat_100g,
+                iif(carbohydrates_100g IS NOT NULL, CAST (carbohydrates_100g AS FLOAT), NULL) AS carbohydrates_100g,
                 DishIngredient.dish_id,
-                DishIngredient.weight as ingredient_weight
+                CAST (DishIngredient.weight AS FLOAT) AS ingredient_weight
             FROM
                 DishIngredient
                 LEFT JOIN Ingredient ON Ingredient.id = DishIngredient.ingredient_id
@@ -189,25 +189,25 @@ mod meal_dishes {
                         )
                     })
                     .reduce(|(a1, b1, c1, d1), (a2, b2, c2, d2)| {
-                        (a1 + a2, b1 + b2, c1 + c2, d1 + d2)
+                        ((a1 + a2), (b1 + b2), (c1 + c2), (d1 + d2))
                     })
                     .map(|(kcal_100g, proteins_100g, fat_100g, carbohydrates_100g)| {
                         (
-                            kcal_100g * dish.weight / 100,
-                            proteins_100g * dish.weight / 100,
-                            fat_100g * dish.weight / 100,
-                            carbohydrates_100g * dish.weight / 100,
+                            kcal_100g * dish.weight / 100.0,
+                            proteins_100g * dish.weight / 100.0,
+                            fat_100g * dish.weight / 100.0,
+                            carbohydrates_100g * dish.weight / 100.0,
                         )
                     });
 
                 MealComponent {
-                    weight: dish.weight,
+                    weight: dish.weight as i64,
                     name: dish.name,
                     id: dish.id,
-                    kcal: nutrients.map(|n| n.0),
-                    proteins: nutrients.map(|n| n.1),
-                    fat: nutrients.map(|n| n.2),
-                    carbohydrates: nutrients.map(|n| n.3),
+                    kcal: nutrients.map(|n| n.0 as i64),
+                    proteins: nutrients.map(|n| n.1 as i64),
+                    fat: nutrients.map(|n| n.2 as i64),
+                    carbohydrates: nutrients.map(|n| n.3 as i64),
                 }
             })
             .collect())
