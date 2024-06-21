@@ -39,7 +39,7 @@ pub struct NewDishIngredient {
     pub weight: i64,
 }
 
-#[derive(Serialize, Default, JsonSchema)]
+#[derive(Serialize, Default, JsonSchema, Clone)]
 pub struct Meal {
     pub id: i64,
     pub creation_date: i64,
