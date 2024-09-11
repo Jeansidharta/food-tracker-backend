@@ -3,3 +3,4 @@ test.sql
 test.sql.md
 test
 *.sqlite3*
+.direnv
